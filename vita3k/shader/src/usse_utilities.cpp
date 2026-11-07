@@ -28,7 +28,6 @@
 #include <features/state.h>
 
 #include <bitset>
-#include <cstdlib>
 
 namespace shader::usse::utils {
 
@@ -1138,19 +1137,8 @@ spv::Id load(spv::Builder &b, const SpirvShaderParameters &params, SpirvUtilFunc
     }
 
     if (size_comp != 4) {
-        /*
-         * Unity declares material colours as F16 uniforms but writes full
-         * 32-bit floats into the default uniform buffer ("_RendererColor" and
-         * "_Color" at successive registers, four bytes each). Unpacking those
-         * words as half pairs turns every sprite colour into green. Read half
-         * uniforms as floats unless a title is known to pack them.
-         */
-        bool f16_uniform_as_float = op.type == DataType::F16 &&
-                                    op.bank == RegisterBank::SECATTR &&
-                                    !getenv("VITA2NATIVE_PACKED_HALF_UNIFORMS");
-
-        first_pass = unpack(b, utils, features, first_pass, op.type, op.swizzle, dest_mask, 0,
-                            f16_uniform_as_float);
+        // Second pass: Do unpack
+        first_pass = unpack(b, utils, features, first_pass, op.type, op.swizzle, dest_mask, 0);
     } else if (op.type == DataType::INT32) {
         first_pass = b.createUnaryOp(spv::OpBitcast, make_vector_or_scalar_type(b, b.makeIntType(32), static_cast<int>(dest_comp_count)), first_pass);
     } else if (op.type == DataType::UINT32) {
@@ -1165,7 +1153,7 @@ spv::Id load(spv::Builder &b, const SpirvShaderParameters &params, SpirvUtilFunc
 }
 
 spv::Id unpack(spv::Builder &b, SpirvUtilFunctions &utils, const FeatureState &features, spv::Id target, const DataType type, Swizzle4 swizz, const Imm4 dest_mask,
-    const int offset, bool f16_as_float) {
+    const int offset) {
     if (type == DataType::F32 || target == spv::NoResult) {
         return target;
     }
@@ -1191,12 +1179,7 @@ spv::Id unpack(spv::Builder &b, SpirvUtilFunctions &utils, const FeatureState &f
             }
         }
 
-        if (f16_as_float && type == DataType::F16) {
-            spv::Id pair = b.makeVectorType(type_f32, 2);
-            unpack_results[i] = b.createCompositeConstruct(pair, { extracted, extracted });
-        } else {
-            unpack_results[i] = unpack_one(b, utils, features, extracted, type);
-        }
+        unpack_results[i] = unpack_one(b, utils, features, extracted, type);
     }
 
     return finalize(b, unpack_results[0], unpack_results.size() > 1 ? unpack_results[1] : unpack_results[0],
