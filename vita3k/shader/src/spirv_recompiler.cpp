@@ -703,10 +703,10 @@ static void create_fragment_inputs(spv::Builder &b, SpirvShaderParameters &param
             }
         };
 
-        if (features.direct_fragcolor && (translation_state.is_vulkan || translation_state.is_target_glsl)) {
+        if (features.direct_fragcolor) {
             // The GPU supports gl_LastFragData.
             // On Vulkan this is a subpass input, it is similar to gl_LastFragData (and should have the same speed on integrated GPUs)
-            // This is not supported on OpenGL with SpirV
+            // With SPIR-V output the consumer remaps it to GL_EXT_shader_framebuffer_fetch.
             const spv::Id image_type = b.makeImageType(f32, spv::DimSubpassData, false, false, false, 2, spv::ImageFormatUnknown);
             const spv::Id last_frag_data = b.createVariable(spv::NoPrecision, spv::StorageClassUniformConstant, image_type, "last_frag_data");
             b.addDecoration(last_frag_data, spv::DecorationInputAttachmentIndex, 0);
